@@ -1,70 +1,46 @@
-Redis Replication and Sentinel Setup on RHEL 8.8
-Step 1: Configure Redis Replication
-Operating System: RHEL 8.8
-Master: 100.110.34.20
-Slaves: 100.110.34.21, 100.110.34.30
+Step1: Configure replication
 
-1.1 Install Redis on All Nodes
-Run the following commands on all three nodes (master and slaves):
+OS RHEL 8.8
 
-bash
-Copy code
+master  100.110.34.20
+Slave   100.110.34.21 & 100.110.34.30
+
+===  on all 3 nodes ====
 sudo yum install epel-release -y
 sudo yum install redis -y
-1.2 Configure Redis
-On the Master Node (100.110.34.20):
-Open the Redis configuration file:
-bash
-Copy code
-sudo nano /etc/redis.conf
-Update the bind setting to allow external connections:
-conf
-Copy code
-bind 0.0.0.0
-On Each Slave Node (100.110.34.21, 100.110.34.30):
-Open the Redis configuration file:
-bash
-Copy code
-sudo nano /etc/redis.conf
-Add the following line to point to the master node:
-conf
-Copy code
-replicaof 100.110.34.20 6379
-1.3 Start and Enable Redis
-On each node, start and enable Redis to run on boot:
 
-bash
-Copy code
+
+===================================
+on master in /etc/redis.conf
+replace "bind 127.0.0.1" to "bind  0.0.0.0"
+
+on slave in /etc/redis.conf add following Line
+replicaof 100.110.34.20 6379
+
+========================================
 sudo systemctl restart redis
 sudo systemctl enable redis
-Step 2: Configure Redis Sentinel
-Sentinel Nodes: 100.110.34.20, 100.110.34.21, 100.110.34.30
-Operating System: RHEL 8.8
+===============================
 
-2.1 System Configuration
-Open /etc/sysctl.conf and set the following parameter to optimize network connections:
-conf
-Copy code
-net.core.somaxconn = 1024
-Create a directory for Redis with appropriate permissions:
-bash
-Copy code
-sudo mkdir -p /home/redis
-sudo chown redis:redis /home/redis
-2.2 Configure Sentinel
-Edit the Sentinel configuration file on each node:
+Step2: Configure sentinel
 
-bash
-Copy code
-sudo nano /etc/redis-sentinel.conf
-Add or update the following settings:
+Sentinel nodes  100.110.34.20, 100.110.34.21 & 100.110.34.30
+OS RHEL 8.8
 
-conf
-Copy code
+set net.core.somaxconn = 1024  in /etc/sysctl.conf
+Ensure a create a directory /home/redis with permission  redis:redis
+
+edit /etc/redis-sentinel.conf file
+
+# Unique Sentinel ID - This will be generated automatically for each instance on start
+#sentinel myid <unique_id_for_each_node>  # This line can be removed; Sentinel will assign an ID
+
 # Monitor the Redis master instance
+# Replace "100.110.34.30" with the actual IP address of the Redis master
 sentinel monitor mymaster 100.110.34.30 6379 2
 
 # Authentication password for Redis master
+# Replace "your_redis_password" with the actual Redis password
 sentinel auth-pass mymaster your_redis_password
 
 # Logging settings
@@ -78,33 +54,20 @@ bind 0.0.0.0
 # Directory for Sentinel persistence files
 dir "/home/redis"
 
-# Protection settings
+# Protection settings - "protected-mode" should be off for accessibility
 protected-mode no
 
-# Quorum and failover settings
+# Quorum setting - set to 2 for this setup
 sentinel down-after-milliseconds mymaster 30000
 sentinel parallel-syncs mymaster 1
 sentinel failover-timeout mymaster 180000
-Note: Each Sentinel node will generate a unique ID automatically on startup.
 
-2.3 Start Sentinel on All Nodes
-On each node, start the Redis Sentinel:
 
-bash
-Copy code
-redis-sentinel /etc/redis-sentinel.conf
-Step 3: Verify Sentinel Setup
-To check the Sentinel setup and current master, run the following commands:
+start sentinel in all hosts
 
-Check the Current Master:
+$redis-sentinel /etc/redis-sentinel in all nodes
 
-bash
-Copy code
-redis-cli -p 26379 sentinel get-master-addr-by-name mymaster
-Check Sentinel Nodes:
+Check following
 
-bash
-Copy code
-redis-cli -p 26379 sentinel sentinels mymaster
-These commands should display the current master and all configured Sentinel nodes, excluding the node from which the command is run.
-
+redis-cli -p 26379 sentinel get-master-addr-by-name mymaster  (will give you current master)
+redis-cli -p 26379 sentinel sentinels mymaster  (will give all sentinels, this will show all nodes but itself)
